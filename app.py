@@ -15,15 +15,15 @@ def check_password():
         else:
             st.session_state["pw_ok"] = False
     if "pw_ok" not in st.session_state:
-        st.text_input("Access Password", type="password", on_change=p_entered, key="pw")
+        st.text_input("Password", type="password", on_change=p_entered, key="pw")
         return False
     elif not st.session_state["pw_ok"]:
-        st.text_input("Access Password", type="password", on_change=p_entered, key="pw")
-        st.error("Access Denied")
+        st.text_input("Password", type="password", on_change=p_entered, key="pw")
+        st.error("Denied")
         return False
     return True
 
-# --- 2. FORENSIC PROCESSING (Otsu's Method) ---
+# --- 2. IMAGE PROCESSING (Otsu Logic) ---
 def process_image(img_bytes, radius, debug=False):
     nparr = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -53,27 +53,31 @@ def process_image(img_bytes, radius, debug=False):
     return cv2.cvtColor(res, cv2.COLOR_BGR2RGB), cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 # --- 3. INTERFACE ---
-st.set_page_config(page_title="PhD Image Eraser", layout="wide")
+st.set_page_config(page_title="Eraser", layout="wide")
 if check_password():
-    st.title("💎 Diamond Magic Eraser")
+    st.title("Diamond Eraser")
     with st.sidebar:
-        rad = st.slider("Healing Radius", 1, 15, 5)
+        rad = st.slider("Radius", 1, 15, 5)
         db = st.checkbox("Debug Mode")
     
-    up = st.file_uploader("Upload Campaign Ads", type=['jpg', 'png', 'jpeg'], accept_multiple_files=True)
+    # Upload Ads
+    up = st.file_uploader("Upload", type=['jpg', 'png', 'jpeg'], accept_multiple_files=True)
     
     if up:
-        # 1. Preview
+        # SECTION 1: PREVIEW
+        st.divider()
         st.subheader("🔍 Calibration Preview")
-        p, o = process_image(up[0].getvalue(), rad, db)
+        first_img = up[0].getvalue()
+        p, o = process_image(first_img, rad, db)
         if db:
-            st.image(p, caption="Forensic Mask (Targeting Star)")
+            st.image(p, caption="Forensic Mask")
         else:
             image_comparison(img1=o, img2=p, label1="Original", label2="Cleaned")
 
-        # 2. Batch
+        # SECTION 2: BATCH DOWNLOAD
+        st.divider()
         st.subheader("🚀 Batch Processing")
-        if st.button("Process All and Download"):
+        if st.button("Process All and Download ZIP"):
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
                 for f in up:
@@ -82,5 +86,11 @@ if check_password():
                     t = io.BytesIO()
                     pi.save(t, format='PNG')
                     z.writestr(f"cleaned_{f.name}", t.getvalue())
-            st.success("✅ Processing Complete!")
-            st.download_button("💾 Download ZIP", data=buf.getvalue(), file_name="cleaned_images.zip")
+            
+            st.success("✅ Batch Complete!")
+            st.download_button(
+                label="💾 Download ZIP", 
+                data=buf.getvalue(), 
+                file_name="cleaned_images.zip",
+                mime="application/zip"
+            )
