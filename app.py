@@ -6,6 +6,7 @@ import io
 import zipfile
 from streamlit_image_comparison import image_comparison
 
+# --- 1. SECURITY ---
 def check_password():
     def p_entered():
         if st.session_state["pw"] == st.secrets["password"]:
@@ -14,14 +15,15 @@ def check_password():
         else:
             st.session_state["pw_ok"] = False
     if "pw_ok" not in st.session_state:
-        st.text_input("Password", type="password", on_change=p_entered, key="pw")
+        st.text_input("Access Password", type="password", on_change=p_entered, key="pw")
         return False
     elif not st.session_state["pw_ok"]:
-        st.text_input("Password", type="password", on_change=p_entered, key="pw")
-        st.error("Denied")
+        st.text_input("Access Password", type="password", on_change=p_entered, key="pw")
+        st.error("Access Denied")
         return False
     return True
 
+# --- 2. FORENSIC PROCESSING (Otsu's Method) ---
 def process_image(img_bytes, radius, debug=False):
     nparr = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -50,47 +52,35 @@ def process_image(img_bytes, radius, debug=False):
     res = cv2.inpaint(img, f_mask, inpaintRadius=radius, flags=cv2.INPAINT_NS)
     return cv2.cvtColor(res, cv2.COLOR_BGR2RGB), cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-st.set_page_config(page_title="Eraser", layout="wide")
+# --- 3. INTERFACE ---
+st.set_page_config(page_title="PhD Image Eraser", layout="wide")
 if check_password():
-    st.title("Diamond Eraser")
+    st.title("💎 Diamond Magic Eraser")
     with st.sidebar:
-        rad = st.slider("Radius", 1, 15, 5)
+        rad = st.slider("Healing Radius", 1, 15, 5)
         db = st.checkbox("Debug Mode")
     
-    up = st.file_uploader("Upload Ads", type=['jpg', 'png'], accept_multiple_files=True)
+    up = st.file_uploader("Upload Campaign Ads", type=['jpg', 'png', 'jpeg'], accept_multiple_files=True)
     
     if up:
-        # --- PREVIEW SECTION ---
-        with st.expander("🔍 Calibration Preview", expanded=True):
-            first_file = up[0]
-            first_bytes = first_file.getvalue()
-            p, o = process_image(first_bytes, rad, db)
-            
-            if db:
-                st.image(p, caption="Forensic Mask")
-            else:
-                image_comparison(img1=o, img2=p, label1="Original", label2="Cleaned")
+        # 1. Preview
+        st.subheader("🔍 Calibration Preview")
+        p, o = process_image(up[0].getvalue(), rad, db)
+        if db:
+            st.image(p, caption="Forensic Mask (Targeting Star)")
+        else:
+            image_comparison(img1=o, img2=p, label1="Original", label2="Cleaned")
 
-        # --- BATCH SECTION ---
-        if st.button("🚀 Start Batch Processing"):
+        # 2. Batch
+        st.subheader("🚀 Batch Processing")
+        if st.button("Process All and Download"):
             buf = io.BytesIO()
-            progress_text = st.empty()
-            bar = st.progress(0)
-            
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-                for idx, f in enumerate(up):
-                    progress_text.text(f"Processing: {f.name}")
-                    res, _ = process_image(f.getvalue(), rad)
-                    pi = Image.fromarray(res)
+                for f in up:
+                    res_img, _ = process_image(f.getvalue(), rad)
+                    pi = Image.fromarray(res_img)
                     t = io.BytesIO()
                     pi.save(t, format='PNG')
-                    z.writestr(f"clean_{f.name}", t.getvalue())
-                    bar.progress((idx + 1) / len(up))
-            
-            st.success("✅ Batch Complete!")
-            st.download_button(
-                label="💾 Download Cleaned ZIP",
-                data=buf.getvalue(),
-                file_name="cleaned_research_images.zip",
-                mime="application/zip"
-            )
+                    z.writestr(f"cleaned_{f.name}", t.getvalue())
+            st.success("✅ Processing Complete!")
+            st.download_button("💾 Download ZIP", data=buf.getvalue(), file_name="cleaned_images.zip")
