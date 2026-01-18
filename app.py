@@ -53,12 +53,21 @@ def process_image(image_bytes, threshold, radius, surgical_mode=False):
 # --- 3. THE USER INTERFACE ---
 st.set_page_config(page_title="Diamond Eraser Pro", page_icon="💎", layout="wide")
 
-# This 'if' statement is the primary condition for the script to run
 if check_password():
+    st.sidebar.success("✅ Authenticated")
     st.title("💎 Diamond Magic Eraser")
     st.write("Professional batch watermark removal for research imagery.")
 
     with st.sidebar:
         st.header("⚙️ Settings")
         threshold = st.slider("Detection Sensitivity", 100, 255, 230)
-        radius = st
+        radius = st.slider("Healing Smoothness", 1, 20, 5) # <--- Fixed the broken line!
+        surgical = st.checkbox("Surgical Mode (Bottom-Right Only)", value=True)
+        st.info("Tip: Use Surgical Mode to protect text in the center of your research images.")
+
+    # THE MISSING UPLOADER
+    uploaded_files = st.file_uploader("Upload campaign images", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
+
+    if uploaded_files:
+        st.write(f"📂 {len(uploaded_files)} files ready for processing.")
+        # (The rest of your processing logic will follow here)
