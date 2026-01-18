@@ -6,7 +6,7 @@ import io
 import zipfile
 from streamlit_image_comparison import image_comparison
 
-# --- 1. SECURITY ---
+# --- 1. SECURITY GATEKEEPER ---
 def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["password"]:
@@ -14,6 +14,7 @@ def check_password():
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
+
     if "password_correct" not in st.session_state:
         st.text_input("Security Access Required", type="password", on_change=password_entered, key="password")
         return False
@@ -23,66 +24,64 @@ def check_password():
         return False
     return True
 
-# --- 2. THE TWIN-SLAYER LOGIC ---
-def process_image(image_bytes, threshold, radius, solidity_min, debug=False):
+# --- 2. FORENSIC IMAGE PROCESSING ---
+def process_image(image_bytes, radius, debug=False):
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # Surgical ROI (Bottom-Right)
-    mask = np.zeros_like(gray)
+    # Surgical ROI (Focus on Bottom-Right 40%)
     h, w = gray.shape
-    roi = gray[int(h*0.6):h, int(w*0.6):w] 
-    _, roi_mask = cv2.threshold(roi, threshold, 255, cv2.THRESH_BINARY)
-    mask[int(h*0.6):h, int(w*0.6):w] = roi_mask
+    roi = gray[int(h*0.6):h, int(w*0.6):w]
+    
+    # UNIVERSAL DETECTION: Otsu's Method handles both Light and Dark backgrounds
+    # This automatically finds the best threshold for the specific image contrast
+    _, mask_light = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, mask_dark = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    
+    # Merge both results to ensure the 'Twin' has nowhere to hide
+    combined_roi_mask = cv2.bitwise_or(mask_light, mask_dark)
+    
+    full_mask = np.zeros_like(gray)
+    full_mask[int(h*0.6):h, int(w*0.6):w] = combined_roi_mask
 
-    # Geometry Filter
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    final_mask = np.zeros_like(mask)
+    # GEOMETRY AUDIT: Filter by the 'Star' footprint
+    contours, _ = cv2.findContours(full_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    final_mask = np.zeros_like(full_mask)
     
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < 100 or area > 5000: continue
-        
-        hull = cv2.convexHull(cnt)
-        hull_area = cv2.contourArea(hull)
-        solidity = float(area)/hull_area if hull_area > 0 else 0
-        
-        # The 'Twin' star is around 0.75 - 0.85 solidity
-        if solidity > solidity_min:
-            cv2.drawContours(final_mask, [cnt], -1, 255, -1)
+        # Target the specific pixel-area of the watermark
+        if 200 < area < 4500:
+            hull = cv2.convexHull(cnt)
+            hull_area = cv2.contourArea(hull)
+            solidity = float(area)/hull_area if hull_area > 0 else 0
+            
+            # The four-pointed star 'Twin' has a solidity 'sweet spot'
+            # (Higher than text, but lower than a perfect square/circle)
+            if 0.60 < solidity < 0.92:
+                cv2.drawContours(final_mask, [cnt], -1, 255, -1)
 
     if debug:
+        # Returns the mask so you can see exactly what the AI is targeting
         return final_mask, cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    # Expanded kernel to catch the star points
+    # HEALING: Expand the mask slightly to ensure no 'gray shadows' remain
     kernel = np.ones((5,5), np.uint8)
     final_mask = cv2.dilate(final_mask, kernel, iterations=1)
     result = cv2.inpaint(img, final_mask, inpaintRadius=radius, flags=cv2.INPAINT_NS)
+    
     return cv2.cvtColor(result, cv2.COLOR_BGR2RGB), cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-# --- 3. UI ---
+# --- 3. THE INTERFACE ---
 st.set_page_config(page_title="Diamond Eraser Pro", page_icon="💎", layout="wide")
 
 if check_password():
+    st.sidebar.success("✅ Authenticated")
     st.title("💎 Diamond Magic Eraser")
+    st.write("Forensic normalization of political campaign imagery for PhD research.")
+
     with st.sidebar:
-        st.header("⚙️ Settings")
-        # Start at 160 to catch the gray star!
-        threshold = st.slider("Detection Sensitivity", 50, 255, 160)
-        solidity_min = st.slider("Solidity Check", 0.40, 0.99, 0.75)
-        radius = st.slider("Healing Smoothness", 1, 15, 5)
-        debug_mode = st.checkbox("🐞 Debug Mode: Show Mask")
-
-    uploaded_files = st.file_uploader("Upload campaign images", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
-
-    if uploaded_files:
-        with st.expander("🔍 Calibration Preview", expanded=True):
-            first_img_bytes = uploaded_files[0].read()
-            uploaded_files[0].seek(0) 
-            processed, original = process_image(first_img_bytes, threshold, radius, solidity_min, debug_mode)
-            
-            if debug_mode:
-                st.image(processed, caption="White = To be erased", use_container_width=True)
-            else:
-                image_comparison(img1=original, img2=processed, label1="Original", label2="Cleaned")
+        st.header("⚙️ Advanced Settings")
+        radius = st.slider("Healing Smoothness (Radius)", 1, 15, 5)
+        debug_mode = st.checkbox("🐞 Debug Mode: Show Mask", help="Turn this on to see what the AI is targeting
