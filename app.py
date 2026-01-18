@@ -58,6 +58,61 @@ if check_password():
     st.title("💎 Diamond Magic Eraser")
     st.write("Professional batch watermark removal for research imagery.")
 
+# THE UPLOADER
+    uploaded_files = st.file_uploader("Upload campaign images", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
+
+    if uploaded_files:
+        st.info(f"📂 {len(uploaded_files)} files ready for processing.")
+        
+        processed_images = []
+        zip_buffer = io.BytesIO()
+
+        # 1. Verification Preview (Compare the first image)
+        with st.expander("🔍 Calibration Preview", expanded=True):
+            first_img_bytes = uploaded_files[0].read()
+            uploaded_files[0].seek(0) # Reset for the batch loop
+            
+            processed_first, original_first = process_image(first_img_bytes, threshold, radius, surgical)
+            
+            image_comparison(
+                img1=original_first,
+                img2=processed_first,
+                label1="Original Rhetoric",
+                label2="Cleaned (Normalized)"
+            )
+
+        # 2. The Batch Processing Loop
+        if st.button("🚀 Start Batch Processing"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                for idx, file in enumerate(uploaded_files):
+                    status_text.text(f"Processing image {idx+1} of {len(uploaded_files)}...")
+                    
+                    # Run the healing logic
+                    img_bytes = file.read()
+                    processed_img, _ = process_image(img_bytes, threshold, radius, surgical)
+                    
+                    # Convert back to bytes for the ZIP
+                    result_pil = Image.fromarray(processed_img)
+                    img_io = io.BytesIO()
+                    result_pil.save(img_io, format='PNG')
+                    
+                    # Add to ZIP archive
+                    zip_file.writestr(f"cleaned_{file.name}", img_io.getvalue())
+                    progress_bar.progress((idx + 1) / len(uploaded_files))
+
+            status_text.success("✅ All images processed!")
+
+            # 3. The Download (The 'Shipping Department')
+            st.sidebar.download_button(
+                label="💾 Download Cleaned Batch (.zip)",
+                data=zip_buffer.getvalue(),
+                file_name="research_ready_images.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
     with st.sidebar:
         st.header("⚙️ Settings")
         threshold = st.slider("Detection Sensitivity", 100, 255, 230)
