@@ -56,23 +56,41 @@ if check_password():
     with st.sidebar:
         rad = st.slider("Radius", 1, 15, 5)
         db = st.checkbox("Debug Mode")
-    up = st.file_uploader("Upload", type=['jpg', 'png'], accept_multiple_files=True)
+    
+    up = st.file_uploader("Upload Ads", type=['jpg', 'png'], accept_multiple_files=True)
+    
     if up:
-        buf = io.BytesIO()
-        with st.expander("Preview", expanded=True):
-            b = up[0].read()
-            up[0].seek(0)
-            p, o = process_image(b, rad, db)
+        # --- PREVIEW SECTION ---
+        with st.expander("🔍 Calibration Preview", expanded=True):
+            first_file = up[0]
+            first_bytes = first_file.getvalue()
+            p, o = process_image(first_bytes, rad, db)
+            
             if db:
-                st.image(p)
+                st.image(p, caption="Forensic Mask")
             else:
-                image_comparison(img1=o, img2=p)
-        if st.button("Batch"):
-            with zipfile.ZipFile(buf, "a", zipfile.ZIP_DEFLATED, False) as z:
-                for f in up:
-                    res, _ = process_image(f.read(), rad)
+                image_comparison(img1=o, img2=p, label1="Original", label2="Cleaned")
+
+        # --- BATCH SECTION ---
+        if st.button("🚀 Start Batch Processing"):
+            buf = io.BytesIO()
+            progress_text = st.empty()
+            bar = st.progress(0)
+            
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for idx, f in enumerate(up):
+                    progress_text.text(f"Processing: {f.name}")
+                    res, _ = process_image(f.getvalue(), rad)
                     pi = Image.fromarray(res)
                     t = io.BytesIO()
                     pi.save(t, format='PNG')
                     z.writestr(f"clean_{f.name}", t.getvalue())
-            st.download_button("Download", data=buf.getvalue(), file_name="output.zip")
+                    bar.progress((idx + 1) / len(up))
+            
+            st.success("✅ Batch Complete!")
+            st.download_button(
+                label="💾 Download Cleaned ZIP",
+                data=buf.getvalue(),
+                file_name="cleaned_research_images.zip",
+                mime="application/zip"
+            )
